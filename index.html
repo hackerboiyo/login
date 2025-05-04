@@ -1,134 +1,95 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
+  <title>Login / Signup (JSONBin)</title>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Simple Login / Signup</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f2f2f2;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-    }
-    .box {
-      background: #fff;
-      padding: 30px;
-      border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      text-align: center;
-      width: 300px;
-    }
-    input[type="text"], input[type="password"] {
-      width: 100%;
-      padding: 10px;
-      margin: 8px 0;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-    }
-    button {
-      padding: 10px 20px;
-      width: 100%;
-      background: #3498db;
-      border: none;
-      color: white;
-      border-radius: 5px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-    button:hover {
-      background: #2980b9;
-    }
-    #message {
-      margin-top: 10px;
-    }
-    .toggle-link {
-      margin-top: 15px;
-      font-size: 14px;
-    }
+    body { font-family: sans-serif; background: #f2f2f2; padding: 50px; text-align: center; }
+    input, button { margin: 5px; padding: 10px; width: 300px; max-width: 90%; }
+    .box { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px #ccc; display: inline-block; }
   </style>
 </head>
 <body>
-  <div class="box" id="form-box">
+  <div class="box">
     <h2 id="form-title">Sign Up</h2>
-    <input type="text" id="username" placeholder="Username" required />
-    <input type="password" id="password" placeholder="Password" required />
-    <label><input type="checkbox" id="stayLoggedIn" /> Stay Logged In</label><br>
+    <input type="text" id="username" placeholder="Username" /><br />
+    <input type="password" id="password" placeholder="Password" /><br />
     <button onclick="submitForm()">Submit</button>
-    <p class="toggle-link" id="switch-text">
-      Already have an account? <a href="#" onclick="toggleForm()">Login</a>
-    </p>
+    <p id="switch-text">Already have an account? <a href="#" onclick="toggleForm()">Login</a></p>
     <p id="message"></p>
   </div>
 
-  <div class="box" id="welcome-box" style="display:none;">
-    <h2 id="welcome-message"></h2>
-    <button onclick="logout()">Logout</button>
-  </div>
-
   <script>
-    let isLogin = false;
+    // ====== 🔧 CONFIG: SET YOUR VALUES HERE ======
+    const API_KEY = "$2a$10$8wQpo2FBM1qxV9NurjEUbeFlnNg3p2PDRCR7JUuA9.cjO86HmNxpy"; // ← Paste your JSONBin API key here
+    const BIN_ID = "6816c7038561e97a500d5c2c";   // ← This is your real Bin ID
+    // ============================================
 
-    window.onload = () => {
-      const currentUser = localStorage.getItem("loggedInUser");
-      if (currentUser) {
-        showWelcome(currentUser);
-      }
-    };
+    const BASE_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+    let isLogin = false;
 
     function toggleForm() {
       isLogin = !isLogin;
-      document.getElementById('form-title').innerText = isLogin ? 'Login' : 'Sign Up';
-      document.getElementById('switch-text').innerHTML = isLogin
-        ? `Don't have an account? <a href="#" onclick="toggleForm()">Sign Up</a>`
-        : `Already have an account? <a href="#" onclick="toggleForm()">Login</a>`;
-      document.getElementById('message').innerText = '';
+      document.getElementById("form-title").innerText = isLogin ? "Login" : "Sign Up";
+      document.getElementById("switch-text").innerHTML = isLogin
+        ? `Don't have an account? <a href='#' onclick='toggleForm()'>Sign Up</a>`
+        : `Already have an account? <a href='#' onclick='toggleForm()'>Login</a>`;
+      document.getElementById("message").innerText = "";
     }
 
-    function submitForm() {
-      const username = document.getElementById('username').value.trim();
-      const password = document.getElementById('password').value.trim();
-      const stayLoggedIn = document.getElementById('stayLoggedIn').checked;
-      const message = document.getElementById('message');
+    async function submitForm() {
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const message = document.getElementById("message");
 
       if (!username || !password) {
-        message.style.color = 'red';
-        message.innerText = 'Please enter both username and password.';
+        message.innerText = "Please enter both username and password.";
+        message.style.color = "red";
         return;
       }
 
-      if (isLogin) {
-        const stored = localStorage.getItem(username);
-        if (stored && stored === password) {
-          if (stayLoggedIn) localStorage.setItem("loggedInUser", username);
-          showWelcome(username);
+      try {
+        const response = await fetch(BASE_URL, {
+          headers: { "X-Master-Key": API_KEY }
+        });
+        const users = (await response.json()).record;
+
+        if (isLogin) {
+          const user = users.find(u => u.username === username && u.password === password);
+          message.style.color = user ? "green" : "red";
+          message.innerText = user ? "Login successful!" : "Invalid credentials.";
         } else {
-          message.style.color = 'red';
-          message.innerText = 'Invalid credentials.';
+          if (users.find(u => u.username === username)) {
+            message.style.color = "red";
+            message.innerText = "Username already exists.";
+            return;
+          }
+
+          users.push({ username, password });
+
+          const update = await fetch(BASE_URL, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Master-Key": API_KEY,
+              "X-Bin-Versioning": "false"
+            },
+            body: JSON.stringify(users)
+          });
+
+          if (update.ok) {
+            message.style.color = "green";
+            message.innerText = "Signup successful!";
+          } else {
+            message.style.color = "red";
+            message.innerText = "Failed to update bin.";
+          }
         }
-      } else {
-        if (localStorage.getItem(username)) {
-          message.style.color = 'red';
-          message.innerText = 'Username already exists.';
-        } else {
-          localStorage.setItem(username, password);
-          message.style.color = 'green';
-          message.innerText = 'Sign up successful. You can now log in.';
-        }
+      } catch (err) {
+        console.error(err);
+        message.style.color = "red";
+        message.innerText = "Error connecting to JSONBin.";
       }
-    }
-
-    function showWelcome(user) {
-      document.getElementById("form-box").style.display = "none";
-      document.getElementById("welcome-box").style.display = "block";
-      document.getElementById("welcome-message").innerText = `Welcome, ${user}!`;
-    }
-
-    function logout() {
-      localStorage.removeItem("loggedInUser");
-      location.reload();
     }
   </script>
 </body>
